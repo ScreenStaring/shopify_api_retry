@@ -5,6 +5,8 @@ Simple module to retry a [ShopifyAPI](https://github.com/Shopify/shopify_api) re
 ## Usage
 
 ```rb
+require "shopify_api_retry"
+
 ShopifyAPIRetry.retry { customer.update_attribute(:tags, "foo")  }
 ShopifyAPIRetry.retry(30) { customer.update_attribute(:tags, "foo") }  # Retry after 30 seconds on HTTP 429
 customer = ShopifyAPIRetry.retry { ShopifyAPI::Customer.find(id) }
