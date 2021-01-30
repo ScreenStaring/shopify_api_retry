@@ -1,6 +1,6 @@
 Gem::Specification.new do |spec|
   spec.name          = "shopify_api_retry"
-  spec.version       = "0.0.1"
+  spec.version       = "0.1.0"
   spec.authors       = ["Skye Shaw"]
   spec.email         = ["skye.shaw@gmail.com"]
 
@@ -21,6 +21,6 @@ Gem::Specification.new do |spec|
   spec.add_dependency "shopify_api", ">= 4.0"
 
   spec.add_development_dependency "minitest", "~> 5.0"
-  spec.add_development_dependency "bundler", "~> 1.16"
+  spec.add_development_dependency "bundler"
   spec.add_development_dependency "rake", "~> 12.0"
 end

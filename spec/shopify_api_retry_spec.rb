@@ -3,7 +3,7 @@ require "minitest/autorun"
 
 TestHTTPResponse = Struct.new(:code, :retry_after) do
   def [](name)
-    name == "Retry-After" ? (retry_after || 2) : nil
+    name == "Retry-After" ? (retry_after || "2") : nil
   end
 end
 
@@ -39,6 +39,8 @@ describe ShopifyAPIRetry::Config do
 end
 
 describe ShopifyAPIRetry do
+  before { ShopifyAPIRetry.config.clear }
+
   describe ".configure" do
     it "sets the default retry options" do
       ShopifyAPIRetry.configure do |cfg|
@@ -65,7 +67,7 @@ describe ShopifyAPIRetry do
               tried += 1
               raise RATE_LIMITED
             end
-          rescue => e
+          rescue
             # Ignore, handle this in another test
             raise $! unless $!.message == RATE_LIMITED.message
           end
@@ -183,7 +185,7 @@ describe ShopifyAPIRetry do
           raise $! unless $!.message == SERVER_ERROR.message
         end
 
-        _(Process.clock_gettime(Process::CLOCK_MONOTONIC) - start).must_be_close_to(2, 0.5)
+        _(Process.clock_gettime(Process::CLOCK_MONOTONIC) - start).must_be_close_to(2, 0.15)
 
         start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
@@ -195,7 +197,7 @@ describe ShopifyAPIRetry do
           raise $! unless $!.message == RATE_LIMITED.message
         end
 
-        _(Process.clock_gettime(Process::CLOCK_MONOTONIC) - start).must_be_close_to(4, 0.5)
+        _(Process.clock_gettime(Process::CLOCK_MONOTONIC) - start).must_be_close_to(4, 0.15)
       end
     end
 
@@ -242,13 +244,13 @@ describe ShopifyAPIRetry do
 
         begin
           ShopifyAPIRetry.retry do
-            raise ActiveResource::ClientError.new(TestHTTPResponse.new("429", 3))
+            raise ActiveResource::ClientError.new(TestHTTPResponse.new("429", "3"))
           end
         rescue
           raise $! unless $!.message == RATE_LIMITED.message
         end
 
-        _(Process.clock_gettime(Process::CLOCK_MONOTONIC) - start).must_be_close_to(3, 0.75)
+        _(Process.clock_gettime(Process::CLOCK_MONOTONIC) - start).must_be_close_to(3, 0.15)
       end
     end
   end

@@ -17,7 +17,7 @@ module ShopifyAPIRetry
     end
 
     def default_wait
-      @default_wait
+      @default_wait ||= nil
     end
 
     def default_tries
@@ -30,9 +30,14 @@ module ShopifyAPIRetry
       options[:tries] ||= default_tries
 
       Array(errors).each do |status_or_class|
-        status_or_class = status_or_class.to_s if status_or_class.is_a?(Integer)
         @settings[status_or_class] = options
       end
+    end
+
+    def clear
+      @settings.clear
+      @default_wait = nil
+      @default_tries = nil
     end
 
     def to_h
@@ -78,11 +83,14 @@ module ShopifyAPIRetry
       handler ||= attempts[e.response.code] || attempts["#{e.response.code[0]}XX"]
       handler[:wait] ||= e.response[HTTP_RETRY_AFTER] || config.default_wait if e.response.code == HTTP_RETRY_STATUS
 
-
       handler[:attempts] ||= 1
       raise if handler[:attempts] == handler[:tries]
 
-      sleep handler[:wait]
+      snooze = handler[:wait].to_i
+      waited = sleep snooze
+      snooze -= waited
+      # Worth looping?
+      sleep snooze if snooze > 0
 
       handler[:attempts] += 1
 
@@ -109,8 +117,6 @@ module ShopifyAPIRetry
       if v.is_a?(Hash)
         config[k.to_s] = v.dup
       else
-        # config should always have a 429 key
-        #config["429"] ||= {}
         config[HTTP_RETRY_STATUS][k] = v
       end
     end
