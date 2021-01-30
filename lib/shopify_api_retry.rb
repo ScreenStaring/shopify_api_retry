@@ -1,35 +1,91 @@
+# frozen_string_literal: true
+
 require "shopify_api"
 
 module ShopifyAPIRetry
-  VERSION = "0.0.1".freeze
-  HTTP_RETRY_AFTER = "Retry-After".freeze
+  VERSION = "0.1.0"
+
+  HTTP_RETRY_AFTER = "Retry-After"
+  HTTP_RETRY_STATUS = "429"
+
+  class Config
+    attr_writer :default_wait
+    attr_writer :default_tries
+
+    def initialize
+      @settings = {}
+    end
+
+    def default_wait
+      @default_wait
+    end
+
+    def default_tries
+      @default_tries ||= 2
+    end
+
+    def on(errors, options = nil)
+      options = (options || {}).dup
+      options[:wait] ||= default_wait
+      options[:tries] ||= default_tries
+
+      Array(errors).each do |status_or_class|
+        status_or_class = status_or_class.to_s if status_or_class.is_a?(Integer)
+        @settings[status_or_class] = options
+      end
+    end
+
+    def to_h
+      settings = { HTTP_RETRY_STATUS => { :tries => default_tries, :wait => default_wait } }
+      @settings.each_with_object(settings) { |(k, v), o| o[k.to_s] = v.dup }
+    end
+  end
+
+  @config = Config.new
+
+  def self.configure
+    return @config unless block_given?
+    yield @config
+    nil
+  end
+
+  def self.config
+    @config
+  end
 
   #
-  # Execute the provided block. If an HTTP 429 response is return try
-  # it again.  If no retry time is provided the value of the HTTP header <code>Retry-After</code>
-  # is used. If it's not given (it always is) +2+ is used.
+  # Execute the provided block. If an HTTP 429 response is returned try
+  # it again. If any errors are provided try them according to their wait/return spec.
   #
-  # If retry fails the original error is raised (`ActiveResource::ClientError` or subclass).
+  # If no spec is provided the value of the HTTP header <code>Retry-After</code>
+  # is waited for before retrying. If it's not given (it always is) +2+ is used.
+  #
+  # If retry fails the original error is raised.
   #
   # Returns the value of the block.
   #
-  def retry(seconds_to_wait = nil)
+  def retry(cfg = nil)
     raise ArgumentError, "block required" unless block_given?
-    raise ArgumentError, "seconds to wait must be > 0" unless seconds_to_wait.nil? || seconds_to_wait > 0
 
-    result = nil
-    retried = false
+    attempts = build_config(cfg)
 
     begin
       result = yield
-    rescue ActiveResource::ClientError => e
-      # Not 100% if we need to check for code method, I think I saw a NoMethodError...
-      raise unless !retried && e.response.respond_to?(:code) && e.response.code.to_i == 429
+    rescue => e
+      handler = attempts[e.class.name]
+      raise if handler.nil? && (!e.is_a?(ActiveResource::ClientError) || !e.response.respond_to?(:code))
 
-      seconds_to_wait = (e.response[HTTP_RETRY_AFTER] || 2).to_i unless seconds_to_wait
-      sleep seconds_to_wait
+      handler ||= attempts[e.response.code] || attempts["#{e.response.code[0]}XX"]
+      handler[:wait] ||= e.response[HTTP_RETRY_AFTER] || config.default_wait if e.response.code == HTTP_RETRY_STATUS
 
-      retried = true
+
+      handler[:attempts] ||= 1
+      raise if handler[:attempts] == handler[:tries]
+
+      sleep handler[:wait]
+
+      handler[:attempts] += 1
+
       retry
     end
 
@@ -37,4 +93,34 @@ module ShopifyAPIRetry
   end
 
   module_function :retry
+
+  def self.build_config(userconfig)
+    config = ShopifyAPIRetry.config.to_h
+    return config unless userconfig
+
+    if userconfig.is_a?(Integer)
+      userconfig = { :wait => cfg }
+      warn "passing an Integer to retry is deprecated and will be removed, use an :wait => #{cfg} instead"
+    elsif !userconfig.is_a?(Hash)
+      raise ArgumentError, "config must be a Hash"
+    end
+
+    userconfig.each do |k, v|
+      if v.is_a?(Hash)
+        config[k.to_s] = v.dup
+      else
+        # config should always have a 429 key
+        #config["429"] ||= {}
+        config[HTTP_RETRY_STATUS][k] = v
+      end
+    end
+
+    config.values.each do |cfg|
+      raise ArgumentError, "seconds to wait must be >= 0" if cfg[:wait] && cfg[:wait] < 0
+    end
+
+    config
+  end
+
+  private_class_method :build_config
 end
