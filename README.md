@@ -1,7 +1,23 @@
 # ShopifyAPIRetry
 
+![CI](https://github.com/ScreenStaring/shopify_api_retry/workflows/CI/badge.svg)
+
 Simple Ruby module to retry a [Shopify API request](https://github.com/Shopify/shopify_api) if rate limited (HTTP 429) or other errors
-occur. No monkey patching!
+occur.
+
+## Installation
+
+Bundler:
+
+```rb
+gem "shopify_api_retry"
+```
+
+Gem:
+
+```
+gem install shopify_api_retry
+```
 
 ## Usage
 
@@ -49,20 +65,6 @@ ShopifyAPIRetry.configure do |config|
 end
 
 ShopifyAPIRetry.retry { customer.update_attribute(:tags, "foo")  }
-```
-
-## Installation
-
-Bundler:
-
-```rb
-gem "shopify_api_retry"
-```
-
-Gem:
-
-```
-gem install shopify_api_retry
 ```
 
 ## License
