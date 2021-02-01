@@ -1,4 +1,4 @@
-# ShopifyAPIRetry
+# Shopify API Retry
 
 ![CI](https://github.com/ScreenStaring/shopify_api_retry/workflows/CI/badge.svg)
 
