@@ -107,8 +107,8 @@ module ShopifyAPIRetry
     return config unless userconfig
 
     if userconfig.is_a?(Integer)
-      userconfig = { :wait => cfg }
-      warn "passing an Integer to retry is deprecated and will be removed, use an :wait => #{cfg} instead"
+      userconfig = { :wait => config }
+      warn "passing an Integer to retry is deprecated and will be removed, use :wait => #{config} instead"
     elsif !userconfig.is_a?(Hash)
       raise ArgumentError, "config must be a Hash"
     end
