@@ -1,6 +1,6 @@
 Gem::Specification.new do |spec|
   spec.name          = "shopify_api_retry"
-  spec.version       = "0.1.1"
+  spec.version       = "0.1.2"
   spec.authors       = ["Skye Shaw"]
   spec.email         = ["skye.shaw@gmail.com"]
 

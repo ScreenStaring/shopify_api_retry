@@ -3,7 +3,7 @@
 require "shopify_api"
 
 module ShopifyAPIRetry
-  VERSION = "0.1.1"
+  VERSION = "0.1.2"
 
   HTTP_RETRY_AFTER = "Retry-After"
   HTTP_RETRY_STATUS = "429"

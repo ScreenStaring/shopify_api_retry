@@ -1,0 +1,14 @@
+--------------------
+2021-03-11  v0.1.2
+--------------------
+* Check proper base class for ActiveResource error handling
+
+--------------------
+2021-03-09  v0.1.1
+--------------------
+* Fix typo in deprication warning
+
+--------------------
+2021-01-31  v0.1.0
+--------------------
+* Support for retrying user-defined errors
