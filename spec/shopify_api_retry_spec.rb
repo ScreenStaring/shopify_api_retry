@@ -8,7 +8,7 @@ TestHTTPResponse = Struct.new(:code, :retry_after) do
 end
 
 RATE_LIMITED = ActiveResource::ClientError.new(TestHTTPResponse.new("429"))
-SERVER_ERROR = ActiveResource::ClientError.new(TestHTTPResponse.new("500"))
+SERVER_ERROR = ActiveResource::ServerError.new(TestHTTPResponse.new("500"))
 RETRY_OPTIONS = { "429" => { :tries => 2, :wait => 0 } }.freeze
 
 describe ShopifyAPIRetry::Config do
@@ -100,7 +100,7 @@ describe ShopifyAPIRetry do
             tried += 1
             raise SERVER_ERROR
           end
-        }.must_raise(ActiveResource::ClientError)
+        }.must_raise(ActiveResource::ServerError)
 
         _(tried).must_equal(2)
 
@@ -108,9 +108,9 @@ describe ShopifyAPIRetry do
         _ {
           ShopifyAPIRetry.retry options do
             tried += 1
-            raise ActiveResource::ClientError.new(TestHTTPResponse.new("520"))
+            raise ActiveResource::ServerError.new(TestHTTPResponse.new("520"))
           end
-        }.must_raise(ActiveResource::ClientError)
+        }.must_raise(ActiveResource::ServerError)
 
         _(tried).must_equal(2)
       end

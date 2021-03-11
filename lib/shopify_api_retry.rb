@@ -78,7 +78,7 @@ module ShopifyAPIRetry
       result = yield
     rescue => e
       handler = attempts[e.class.name]
-      raise if handler.nil? && (!e.is_a?(ActiveResource::ClientError) || !e.response.respond_to?(:code))
+      raise if handler.nil? && (!e.is_a?(ActiveResource::ConnectionError) || !e.response.respond_to?(:code))
 
       handler ||= attempts[e.response.code] || attempts["#{e.response.code[0]}XX"]
       handler[:wait] ||= e.response[HTTP_RETRY_AFTER] || config.default_wait if e.response.code == HTTP_RETRY_STATUS
