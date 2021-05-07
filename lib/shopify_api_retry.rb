@@ -3,12 +3,9 @@
 require "shopify_api"
 
 module ShopifyAPIRetry
-  VERSION = "0.1.2"
+  VERSION = "0.2.0"
 
-  HTTP_RETRY_AFTER = "Retry-After"
-  HTTP_RETRY_STATUS = "429"
-
-  class Config
+  class Config                  # :nodoc:
     attr_writer :default_wait
     attr_writer :default_tries
 
@@ -40,8 +37,38 @@ module ShopifyAPIRetry
       @default_tries = nil
     end
 
+    def merge(userconfig)
+      config = to_h
+      return config unless userconfig
+
+      if userconfig.is_a?(Integer)
+        warn "#{self.class}: using an Integer for the retry time is deprecated and will be removed, use :wait => #{userconfig} instead"
+        userconfig = { :wait => userconfig }
+      elsif !userconfig.is_a?(Hash)
+        raise ArgumentError, "config must be a Hash"
+      end
+
+      userconfig.each do |k, v|
+        if v.is_a?(Hash)
+          config[k.to_s] = v.dup
+        else
+          config["graphql"][k] = config[REST::HTTP_RETRY_STATUS][k] = v
+        end
+      end
+
+      config.values.each do |cfg|
+        raise ArgumentError, "seconds to wait must be >= 0" if cfg[:wait] && cfg[:wait] < 0
+      end
+
+      config
+    end
+
     def to_h
-      settings = { HTTP_RETRY_STATUS => { :tries => default_tries, :wait => default_wait } }
+      settings = {
+        "graphql" => { :tries => default_tries, :wait => default_wait },
+        REST::HTTP_RETRY_STATUS => { :tries => default_tries, :wait => default_wait }
+      }
+
       @settings.each_with_object(settings) { |(k, v), o| o[k.to_s] = v.dup }
     end
   end
@@ -58,75 +85,123 @@ module ShopifyAPIRetry
     @config
   end
 
-  #
-  # Execute the provided block. If an HTTP 429 response is returned try
-  # it again. If any errors are provided try them according to their wait/return spec.
-  #
-  # If no spec is provided the value of the HTTP header <code>Retry-After</code>
-  # is waited for before retrying. If it's not given (it always is) +2+ is used.
-  #
-  # If retry fails the original error is raised.
-  #
-  # Returns the value of the block.
-  #
-  def retry(cfg = nil)
-    raise ArgumentError, "block required" unless block_given?
+  class Request                 # :nodoc:
+    def self.retry(cfg = nil, &block)
+      new(cfg).retry(&block)
+    end
 
-    attempts = build_config(cfg)
+    def initialize(cfg = nil)
+      @handlers = ShopifyAPIRetry.config.merge(cfg)
+    end
 
-    begin
-      result = yield
-    rescue => e
-      handler = attempts[e.class.name]
-      raise if handler.nil? && (!e.is_a?(ActiveResource::ConnectionError) || !e.response.respond_to?(:code))
+    def retry(&block)
+      raise ArgumentError, "block required" unless block_given?
 
-      handler ||= attempts[e.response.code] || attempts["#{e.response.code[0]}XX"]
-      handler[:wait] ||= e.response[HTTP_RETRY_AFTER] || config.default_wait if e.response.code == HTTP_RETRY_STATUS
+      begin
+        result = request(&block)
+      rescue => e
+        handler = find_handler(e)
+        raise unless handler && snooze(handler)
 
+        retry
+      end
+
+      result
+    end
+
+    protected
+
+    attr_reader :handlers
+
+    def request
+      yield
+    end
+
+    def find_handler(error)
+      @handlers[error.class.name]
+    end
+
+    def snooze(handler)
       handler[:attempts] ||= 1
-      raise if handler[:attempts] == handler[:tries]
+      return false if handler[:attempts] == handler[:tries]
 
-      snooze = handler[:wait].to_i
+      snooze = handler[:wait].to_f
       waited = sleep snooze
-      snooze -= waited
-      # Worth looping?
+      snooze = snooze - waited
+      # sleep returns the rounded time slept but sometimes it's rounded up, others it's down
+      # given this, we may sleep for more than requested
       sleep snooze if snooze > 0
 
       handler[:attempts] += 1
 
-      retry
+      true
     end
-
-    result
   end
 
-  module_function :retry
+  class REST < Request
+    HTTP_RETRY_AFTER = "Retry-After"
+    HTTP_RETRY_STATUS = "429"
 
-  def self.build_config(userconfig)
-    config = ShopifyAPIRetry.config.to_h
-    return config unless userconfig
+    protected
 
-    if userconfig.is_a?(Integer)
-      warn "passing an Integer to retry is deprecated and will be removed, use :wait => #{userconfig} instead"
-      userconfig = { :wait => userconfig }
-    elsif !userconfig.is_a?(Hash)
-      raise ArgumentError, "config must be a Hash"
+    def find_handler(error)
+      handler = super
+      return handler if handler || (!error.is_a?(ActiveResource::ConnectionError) || !error.response.respond_to?(:code))
+
+      handler = handlers[error.response.code] || handlers["#{error.response.code[0]}XX"]
+      handler[:wait] ||= error.response[HTTP_RETRY_AFTER] || config.default_wait if error.response.code == HTTP_RETRY_STATUS
+
+      handler
     end
+  end
 
-    userconfig.each do |k, v|
-      if v.is_a?(Hash)
-        config[k.to_s] = v.dup
-      else
-        config[HTTP_RETRY_STATUS][k] = v
+  class GraphQL < Request
+    CONVERSION_WARNING = "#{name}.retry: skipping retry, cannot convert GraphQL response to a Hash: %s. " \
+                         "To retry requests your block's return value must be a Hash or something that can be converted via #to_h"
+    protected
+
+    def request
+      loop do
+        data = og_data = yield
+
+        # Shopify's client does not return a Hash but
+        # technically we work with any Hash response
+        unless data.is_a?(Hash)
+          unless data.respond_to?(:to_h)
+            warn CONVERSION_WARNING % "respond_to?(:to_h) is false"
+            return og_data
+          end
+
+          begin
+            data = data.to_h
+          rescue TypeError, ArgumentError => e
+            warn CONVERSION_WARNING % e.message
+            return og_data
+          end
+        end
+
+        cost = data.dig("extensions", "cost")
+        # If this is nil then the X-GraphQL-Cost-Include-Fields header was not set
+        # If actualQueryCost is present then the query was not rate limited
+        return og_data if cost.nil? || cost["actualQueryCost"]
+
+        handler = handlers["graphql"]
+        handler[:wait] ||= sleep_time(cost)
+
+        return og_data unless snooze(handler)
       end
     end
 
-    config.values.each do |cfg|
-      raise ArgumentError, "seconds to wait must be >= 0" if cfg[:wait] && cfg[:wait] < 0
+    def sleep_time(cost)
+      status = cost["throttleStatus"]
+      (cost["requestedQueryCost"] - status["currentlyAvailable"]) / status["restoreRate"]# + 0.33
     end
-
-    config
   end
 
-  private_class_method :build_config
+  def retry(cfg = nil, &block)
+    warn "#{name}.retry has been deprecated, use ShopifyAPIRetry::REST.retry or ShopifyAPIRetry::GraphQL.retry"
+    REST.new(cfg).retry(&block)
+  end
+
+  module_function :retry
 end
