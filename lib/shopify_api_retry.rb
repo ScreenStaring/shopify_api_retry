@@ -3,7 +3,7 @@
 require "shopify_api"
 
 module ShopifyAPIRetry
-  VERSION = "0.2.0"
+  VERSION = "0.1.3"
 
   class Config                  # :nodoc:
     attr_writer :default_wait
