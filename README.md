@@ -28,20 +28,20 @@ By default requests are retried when a Shopify rate limit error (HTTP 429) is re
 ```rb
 require "shopify_api_retry" # requires "shopify_api" for you
 
-ShopifyAPIRetry.retry { customer.update_attribute(:tags, "foo") }
-customer = ShopifyAPIRetry.retry { ShopifyAPI::Customer.find(id) }
+ShopifyAPIRetry::REST.retry { customer.update_attribute(:tags, "foo") }
+customer = ShopifyAPIRetry::REST.retry { ShopifyAPI::Customer.find(id) }
 ```
 
 You can override this:
 ```rb
-ShopifyAPIRetry.retry(:wait => 3, :tries => 5) { customer.update_attribute(:tags, "foo")  }
+ShopifyAPIRetry::REST.retry(:wait => 3, :tries => 5) { customer.update_attribute(:tags, "foo")  }
 ```
 This will try the request 5 times, waiting 3 seconds between each attempt. If a retry fails after the given number
 of `:tries` the last error will be raised.
 
 You can also retry requests when other errors occur:
 ```rb
-ShopifyAPIRetry.retry "5XX" => { :wait => 10, :tries => 2 } do
+ShopifyAPIRetry::REST.retry "5XX" => { :wait => 10, :tries => 2 } do
   customer.update_attribute(:tags, "foo")
 end
 ```
@@ -49,7 +49,7 @@ This still retries rate limit requests, but also all HTTP 5XX errors.
 
 Classes can be specified too:
 ```rb
-ShopifyAPIRetry.retry SocketError => { :wait => 1, :tries => 5 } do
+ShopifyAPIRetry::REST.retry SocketError => { :wait => 1, :tries => 5 } do
   customer.update_attribute(:tags, "foo")
 end
 ```
