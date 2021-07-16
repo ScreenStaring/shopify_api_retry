@@ -112,7 +112,7 @@ ShopifyAPIRetry.configure do |config|
   config.default_tries = 10
 
   # Use defaults for these
-  config.on ["5XX", Net::TimeoutError]
+  config.on ["5XX", Net::ReadTimeout]
 
   config.on SocketError, :tries => 2, :wait => 1
 end
