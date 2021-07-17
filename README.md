@@ -106,12 +106,14 @@ response's cost data.
 
 ### Global Defaults
 
+You can configure global defaults to be used by REST and GraphQL calls. For example:
+
 ```rb
 ShopifyAPIRetry.configure do |config|
   config.default_wait  = 2.5
   config.default_tries = 10
 
-  # Use defaults for these
+  # Use default_* for these
   config.on ["5XX", Net::ReadTimeout]
 
   config.on SocketError, :tries => 2, :wait => 1
