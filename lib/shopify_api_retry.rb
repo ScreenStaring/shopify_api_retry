@@ -1,9 +1,13 @@
 # frozen_string_literal: true
 
-require "shopify_api"
+# We don't use this. We require it as convenience for the caller in case they do.
+begin
+  require "shopify_api"
+rescue LoadError
+end
 
 module ShopifyAPIRetry
-  VERSION = "0.1.3"
+  VERSION = "0.2.0"
 
   class Config                  # :nodoc:
     attr_writer :default_wait
