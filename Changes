@@ -1,4 +1,9 @@
 --------------------
+2021-12-23  v0.2.0
+--------------------
+* Remove dependency on ShopifyAPI
+
+--------------------
 2021-05-08  v0.1.3
 --------------------
 * Add support for retrying GraphQL requests
