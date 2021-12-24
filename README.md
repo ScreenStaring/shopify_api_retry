@@ -120,6 +120,11 @@ ShopifyAPIRetry.configure do |config|
 end
 ```
 
+## See Also
+
+- [`ShopifyAPI::GraphQL::Tiny`](https://github.com/ScreenStaring/shopify_api-graphql-tiny) - Lightweight, no-nonsense, Shopify GraphQL Admin API client with built-in retry.
+- [Shopify Development Tools](https://github.com/ScreenStaring/shopify-dev-tools) - Command-line program to assist with the development and/or maintenance of Shopify apps and stores
+
 ## License
 
 Released under the MIT License: www.opensource.org/licenses/MIT
